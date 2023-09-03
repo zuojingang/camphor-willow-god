@@ -10,7 +10,7 @@ type Chapter struct {
 	storage.BaseStruct
 	BookId    int64
 	VolumeId  int64
-	OriginId  string `gorm:"-"`
+	OriginId  string
 	Index     int32
 	Name      string
 	Paragraph *[]*Paragraph `gorm:"-"`
@@ -22,23 +22,22 @@ func NewChapter() *Chapter {
 		Paragraph: new([]*Paragraph)}
 }
 
-func (c Chapter) TableName() string {
+func (c *Chapter) TableName() string {
 	return "book_chapter"
 }
 
-func (c Chapter) TryInsert() (bool, Chapter) {
-
+func (c *Chapter) InsertOrUpdate(allowUpdate ...bool) {
 	db := storage.MysqlDB
-	db.Where("book_id=? and volume_id=? and name=?", c.BookId, c.VolumeId, c.Name).Find(&c)
+	var existChapter Chapter
+	db.Where("book_id=? and volume_id=? and `index`=?", c.BookId, c.VolumeId, c.Index).Find(&existChapter)
 	// 新增
+	c.Id = existChapter.Id
 	if c.Id == 0 {
 		c.Id = identified.IdGenerate()
 		db.Create(c)
-		return true, c
+		return
 	}
-	return false, c
-}
-
-func (c Chapter) ClearParagraphs() {
-	storage.MysqlDB.Where("book_id=? and volume_id=? and chapter_id=?", c.BookId, c.VolumeId, c.Id).Delete(NewParagraph())
+	if len(allowUpdate) == 0 || allowUpdate[0] == false {
+		db.Updates(c)
+	}
 }

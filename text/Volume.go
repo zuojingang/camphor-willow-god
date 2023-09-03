@@ -20,19 +20,22 @@ func NewVolume() *Volume {
 		Chapters: new([]*Chapter)}
 }
 
-func (v Volume) TableName() string {
+func (v *Volume) TableName() string {
 	return "book_volume"
 }
 
-func (v Volume) TryInsert() (bool, Volume) {
-
+func (v *Volume) InsertOrUpdate(allowUpdate ...bool) {
 	db := storage.MysqlDB
-	db.Where("book_id=? and name=?", v.BookId, v.Name).Find(&v)
+	var existVolume Volume
+	db.Where("book_id=? and name=?", v.BookId, v.Name).Find(&existVolume)
 	// 新增
+	v.Id = existVolume.Id
 	if v.Id == 0 {
 		v.Id = identified.IdGenerate()
 		db.Create(v)
-		return true, v
+		return
 	}
-	return false, v
+	if len(allowUpdate) == 0 || allowUpdate[0] == false {
+		db.Updates(v)
+	}
 }

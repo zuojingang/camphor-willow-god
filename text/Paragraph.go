@@ -20,7 +20,7 @@ func NewParagraph() *Paragraph {
 	return &Paragraph{}
 }
 
-func (p Paragraph) TableName() string {
+func (p *Paragraph) TableName() string {
 	return "book_paragraph"
 }
 

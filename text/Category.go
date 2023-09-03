@@ -24,13 +24,15 @@ func NewCategoryByName(name string) *Category {
 	return &Category{Name: name}
 }
 
-func (c Category) TableName() string {
+func (c *Category) TableName() string {
 	return "category"
 }
 
-func (c Category) InsertOrUpdate() {
-
+func (c *Category) InsertOrUpdate() {
 	db := storage.MysqlDB
+	var existCategory Category
+	db.Where("name=?", c.Name).Find(&existCategory)
+	c.Id = existCategory.Id
 	// 新增
 	if c.Id == 0 {
 		c.Id = identified.IdGenerate()
@@ -38,39 +40,4 @@ func (c Category) InsertOrUpdate() {
 		return
 	}
 	db.Updates(c)
-}
-
-func PersistentCategories(cs *[]*Category) {
-	if len(*cs) == 0 {
-		return
-	}
-	db := storage.MysqlDB
-	var names []string
-	for _, category := range *cs {
-		if category.Id != 0 {
-			continue
-		}
-		names = append(names, category.Name)
-	}
-	var categoriesQueryResult []Category
-	if len(names) > 0 {
-		db.Where("name in ?", names).Find(&categoriesQueryResult)
-	}
-	categoryNameMap := make(map[string]Category)
-	for _, categoryQueryResult := range categoriesQueryResult {
-		categoryNameMap[categoryQueryResult.Name] = categoryQueryResult
-	}
-	for index, category := range *cs {
-		categoryExist := categoryNameMap[category.Name]
-		category.Id = categoryExist.Id
-		category.Parent = -1
-		if index > 0 {
-			category.Parent = (*cs)[index-1].Id
-			category.Level = int8(index + 1)
-		}
-		if category.Id == 0 {
-			category.Id = identified.IdGenerate()
-			db.Create(category)
-		}
-	}
 }
