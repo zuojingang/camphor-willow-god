@@ -1,0 +1,12 @@
+# mysql 配置
+Mysql:
+  # 构建连接："用户名:密码@tcp(IP:端口)/数据库?charset=utf-8"
+  DSN: dev_user:dev123@tcp(127.0.0.1:3306)/db_dev?charset=utf8mb4,utf8&parseTime=true
+  maxOpen: 20
+  maxLifetime: 3600
+# identified 配置
+Snowflake:
+  # 开始时间 2023-08-30 01:55:15
+  StartTime: 1693331715826
+  # 节点编码
+  NodeId: 1
