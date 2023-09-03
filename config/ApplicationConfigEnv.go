@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
+	"gorm.io/gorm/logger"
 )
 
 // ApplicationConfigEnv 环境应用配置
@@ -13,6 +14,8 @@ type ApplicationConfigEnv struct {
 
 	// mysql 配置
 	Mysql Mysql
+	// logger 配置
+	Logger Logger
 	// identified 配置
 	Snowflake Snowflake
 }
@@ -22,6 +25,11 @@ type Mysql struct {
 	DSN         string
 	MaxOpen     int
 	MaxLifetime int
+}
+
+// Logger 配置
+type Logger struct {
+	Level logger.LogLevel
 }
 
 // Snowflake 配置

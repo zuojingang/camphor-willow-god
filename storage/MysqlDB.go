@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"time"
 )
 
@@ -14,8 +15,9 @@ var MysqlDB *gorm.DB
 func init() {
 	// Mysql 配置
 	mysqlConfig := config.ApplicationConfig.Mysql
+	loggerConfig := config.ApplicationConfig.Logger
 	// 连接数据库
-	gormDB, err := gorm.Open(mysql.Open(mysqlConfig.DSN), &gorm.Config{})
+	gormDB, err := gorm.Open(mysql.Open(mysqlConfig.DSN), &gorm.Config{Logger: logger.Default.LogMode(loggerConfig.Level)})
 	if err != nil {
 		panic(err)
 	}
