@@ -12,9 +12,9 @@ type Book struct {
 	Name       string
 	Author     string
 	Category   int64
-	Categories *[]*Category `gorm:"-"`
-	Tags       *[]*Tag      `gorm:"-"`
-	Volumes    *[]*Volume   `gorm:"-"`
+	Categories *[]*Category   `gorm:"-"`
+	Tags       *[]*Tag        `gorm:"-"`
+	Volumes    *[]*BookVolume `gorm:"-"`
 }
 
 // NewBook 实例
@@ -22,7 +22,7 @@ func NewBook() *Book {
 	return &Book{
 		Categories: new([]*Category),
 		Tags:       new([]*Tag),
-		Volumes:    new([]*Volume)}
+		Volumes:    new([]*BookVolume)}
 }
 
 // NewBookWithArgs 实例
@@ -32,7 +32,7 @@ func NewBookWithArgs(name string, author string) *Book {
 		Author:     author,
 		Categories: new([]*Category),
 		Tags:       new([]*Tag),
-		Volumes:    new([]*Volume)}
+		Volumes:    new([]*BookVolume)}
 }
 
 func (b *Book) TableName() string {
@@ -65,22 +65,27 @@ func (b *Book) Reset() {
 	b.Id = existBook.Id
 	db.Where("book_id=?", b.Id).Delete(&BookTag{})
 
-	var volumes []Volume
+	var volumes []BookVolume
 	db.Where("book_id=?", b.Id).Find(&volumes)
 	if len(volumes) > 0 {
-		var volumeIds []int64
-		var chapters []Chapter
+		var volumeIndexes []int32
+		var chapters []BookChapter
 		for _, volume := range volumes {
-			volumeIds = append(volumeIds, volume.Id)
-			db.Where("book_id=? and volume_id=?", b.Id, volume.Id).Find(&chapters)
+			volumeIndexes = append(volumeIndexes, volume.Index)
+			db.Where("book_id=? and volume_index=?", b.Id, volume.Index).Find(&chapters)
 			if len(chapters) > 0 {
 				for _, chapter := range chapters {
-					db.Where("book_id=? and volume_id=? and chapter_id=?", b.Id, chapter.VolumeId, chapter.Id).Delete(&Paragraph{})
+					for {
+						tx := db.Where("book_id=? and volume_index=? and chapter_index=? limit ?", b.Id, chapter.VolumeIndex, chapter.Index, 500).Delete(&BookWord{})
+						if tx.RowsAffected == 0 {
+							break
+						}
+					}
 				}
 			}
 		}
-		db.Where("book_id=? and volume_id in ?", b.Id, volumeIds).Delete(&Chapter{})
+		db.Where("book_id=? and volume_index in ?", b.Id, volumeIndexes).Delete(&BookChapter{})
 	}
-	db.Where("book_id=?", b.Id).Delete(&Volume{})
+	db.Where("book_id=?", b.Id).Delete(&BookVolume{})
 	db.Delete(&existBook, existBook.Id)
 }

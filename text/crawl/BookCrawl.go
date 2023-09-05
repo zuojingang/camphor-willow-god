@@ -4,20 +4,70 @@ import (
 	"camphor-willow-god/text"
 	"fmt"
 	"github.com/gocolly/colly"
+	"github.com/gocolly/colly/debug"
 	"github.com/gocolly/colly/extensions"
 	"net/url"
 	"slices"
 	"strings"
+	"unicode"
 )
 
-func BookCrawl(bookName string, author string) {
+func BookCrawl() {
+	c := colly.NewCollector(
+		colly.Debugger(&debug.LogDebugger{}),
+		colly.Async(true),
+	)
+	extensions.RandomUserAgent(c)
+	extensions.Referer(c)
+	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
+		href := strings.TrimSpace(e.Attr("href"))
+		bookPathBase := "//www.qidian.com/book/"
+		if !strings.Contains(href, bookPathBase) {
+			return
+		}
+		bookPathBaseIndex := strings.Index(href, bookPathBase)
+		remainPath := href[bookPathBaseIndex+len(bookPathBase) : len(href)-1]
+		remainPathSplit := strings.Split(remainPath, "/")
+		if len(remainPathSplit) != 1 {
+			return
+		}
+		// 访问书籍页面
+		_ = e.Request.Visit(e.Attr("href"))
+	})
+	books := new([]*text.Book)
+	c.OnHTML(".book-info > .book-info-top", func(eBook *colly.HTMLElement) {
+		processBookSummaryInfo(eBook, books)
+	})
+	c.OnHTML(".catalog-volume", func(eVolume *colly.HTMLElement) {
+		processVolumeInfo(eVolume, books)
+	})
+	// 处理章节
+	c.OnHTML(".chapter-wrapper > .relative > .print > .content", func(eChapter *colly.HTMLElement) {
+		processChapterWords(eChapter, books)
+	})
+	// 起点首页
+	_ = c.Visit("https://www.qidian.com/")
+	c.Wait()
+
+	for _, book := range *books {
+		for _, v := range *book.Volumes {
+			for _, c := range *v.Chapters {
+				c.UpdateWordsBookIndex()
+			}
+		}
+	}
+}
+
+func BookSearchCrawl(bookName string, author string) {
 	trimBookName := strings.TrimSpace(bookName)
 	if trimBookName == "" {
 		return
 	}
-	c := colly.NewCollector()
+	c := colly.NewCollector(
+		colly.Debugger(&debug.LogDebugger{}),
+		colly.Async(true),
+	)
 	extensions.RandomUserAgent(c)
-	extensions.Referer(c)
 	c.OnHTML("#result-list > .book-img-text .book-mid-info", func(eBookInfo *colly.HTMLElement) {
 		filterThenVisitBook(eBookInfo, author)
 	})
@@ -30,70 +80,85 @@ func BookCrawl(bookName string, author string) {
 	})
 	// 处理章节
 	c.OnHTML(".chapter-wrapper > .relative > .print > .content", func(eChapter *colly.HTMLElement) {
-		processParagraphs(eChapter, books)
+		processChapterWords(eChapter, books)
 	})
 	// 检索页
 	searchUrl := "https://www.qidian.com/so/" + trimBookName + ".html"
 	// 执行检索
 	//_ = c.Visit("https://www.qidian.com/ajax/UserInfo/GetUserInfo?_csrfToken=75e49589-cc95-46b0-a21c-fe02d96ee82b")
 	_ = c.Visit(searchUrl)
+	c.Wait()
+
+	for _, book := range *books {
+		for _, v := range *book.Volumes {
+			for _, c := range *v.Chapters {
+				c.UpdateWordsBookIndex()
+			}
+		}
+	}
 }
 
-// 处理段落
-func processParagraphs(eChapter *colly.HTMLElement, books *[]*text.Book) {
+// 处理章节字符
+func processChapterWords(eChapter *colly.HTMLElement, books *[]*text.Book) {
 	book := filterBookByOriginId(eChapter, books)
 	// 提取章节ID
 	chapterOriginId := extractOriginChapterId(eChapter.Request.URL.Path)
 	// 章节
 	for _, volume := range *book.Volumes {
 
-		for index, chapter := range *volume.Chapters {
+		for _, chapter := range *volume.Chapters {
 
 			if chapter == nil || chapter.OriginId != chapterOriginId {
 				continue
 			}
-			eChapter.ForEach("p", func(_ int, eParagraph *colly.HTMLElement) {
-				// 计算当前段落索引
-				paragraphIndex := len(*chapter.Paragraph)
-				// 声明段落
-				paragraph := text.NewParagraph()
-				// 书ID
-				paragraph.BookId = book.Id
-				// 分卷ID
-				paragraph.VolumeId = volume.Id
-				// 章节ID
-				paragraph.ChapterId = chapter.Id
-				// 段落索引
-				paragraph.Index = int32(paragraphIndex)
-				// 段落内容
-				paragraph.Content = eParagraph.Text
-				// 章节段落更新
-				*chapter.Paragraph = append(*chapter.Paragraph, paragraph)
-			})
-			// 持久化段落
-			text.PersistentParagraphs(chapter.Paragraph)
-			//if strings.Contains(volume.Name, "VIP") {
-			//	fmt.Println()
-			//}
-			// 释放空间
-			(*volume.Chapters)[index] = nil
+			chapterText := strings.TrimSpace(eChapter.Text)
+			if len(chapterText) == 0 {
+				continue
+			}
+			wIdx := 0
+			for _, w := range chapterText {
+				if unicode.IsSpace(w) {
+					continue
+				}
+				word := text.NewBookWord()
+				word.BookId = book.Id
+				word.VolumeIndex = volume.Index
+				word.ChapterIndex = chapter.Index
+				word.Index = int32(wIdx)
+				word.Word = string(w)
+				*chapter.BookWord = append(*chapter.BookWord, word)
+				wIdx++
+			}
+			// 持久化章节内容
+			text.BatchCreateBookWords(chapter.BookWord)
+			chapter.BookWord = nil
 		}
 	}
 }
 
 // 处理分卷信息
 func processVolumeInfo(eVolume *colly.HTMLElement, books *[]*text.Book) {
+	// 处理分卷
+	volumeName := eVolume.ChildText("label > .volume-header > .volume-name")
+	// 本程序主要分析正文内容文字之间的逻辑关系，所以忽略掉非正文部分
+	if strings.Contains(volumeName, "作品相关") {
+		return
+	}
+	// 暂时没搞明白怎么处理VIP订阅相关问题，跳过VIP分卷
+	if strings.Contains(volumeName, "VIP") {
+		return
+	}
 	book := filterBookByOriginId(eVolume, books)
 	// 计算分卷索引位置
 	volumeIndex := len(*book.Volumes)
 	// 声明分卷
-	volume := text.NewVolume()
+	volume := text.NewBookVolume()
 	// 书ID
 	volume.BookId = book.Id
 	// 扩展书分卷
 	*book.Volumes = append(*book.Volumes, volume)
-	// 处理分卷
-	volume.Name = eVolume.ChildText("label > .volume-header > .volume-name")
+	// 分卷名称
+	volume.Name = volumeName
 	// 分卷索引位置
 	volume.Index = int32(volumeIndex)
 	// 持久化分卷
@@ -105,17 +170,17 @@ func processVolumeInfo(eVolume *colly.HTMLElement, books *[]*text.Book) {
 }
 
 // 处理章节信息
-func processChapter(eChapter *colly.HTMLElement, volume *text.Volume, book *text.Book) {
+func processChapter(eChapter *colly.HTMLElement, volume *text.BookVolume, book *text.Book) {
 	// 章节链接字符串
 	urlString := eChapter.Attr("href")
 	// 计算章节索引位置
 	chapterIndex := len(*volume.Chapters)
 	// 声明章节
-	chapter := text.NewChapter()
+	chapter := text.NewBookChapter()
 	// 书ID
 	chapter.BookId = book.Id
 	// 分卷ID
-	chapter.VolumeId = volume.Id
+	chapter.VolumeIndex = volume.Index
 	// 章节ID
 	chapter.OriginId = extractOriginChapterId(urlString)
 	// 章节索引

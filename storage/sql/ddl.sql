@@ -19,37 +19,17 @@ create index origin_id_index
 
 create table book_chapter
 (
-    book_id     bigint unsigned                          not null comment '书ID',
-    volume_id   bigint unsigned                          not null comment '分卷ID',
-    id          bigint unsigned                          not null comment '唯一标识'
+    book_id      bigint unsigned                          not null comment '书ID',
+    volume_index int unsigned                             not null comment '分卷索引',
+    id           bigint unsigned                          not null comment '唯一标识'
         primary key,
-    origin_id   varchar(20)                              not null,
-    `index`     int unsigned                             not null comment '索引',
-    name        varchar(50)                              not null comment '名称',
-    create_time datetime(6) default CURRENT_TIMESTAMP(6) not null comment '创建时间',
-    update_time datetime(6) default CURRENT_TIMESTAMP(6) not null on update CURRENT_TIMESTAMP(6) comment '更新时间'
+    origin_id    varchar(20)                              not null,
+    `index`      int unsigned                             not null comment '索引',
+    name         varchar(50)                              not null comment '名称',
+    create_time  datetime(6) default CURRENT_TIMESTAMP(6) not null comment '创建时间',
+    update_time  datetime(6) default CURRENT_TIMESTAMP(6) not null on update CURRENT_TIMESTAMP(6) comment '更新时间'
 )
     comment '章节表';
-
-create index volume_index_book_index
-    on book_chapter (volume_id, `index`, book_id);
-
-create table book_paragraph
-(
-    book_id     bigint unsigned                          not null comment '书ID',
-    volume_id   bigint unsigned                          not null comment '分卷ID',
-    chapter_id  bigint unsigned                          not null comment '章节ID',
-    id          bigint unsigned                          not null comment '唯一标识'
-        primary key,
-    `index`     int unsigned                             not null comment '索引',
-    content     text                                     not null comment '段落内容',
-    create_time datetime(6) default CURRENT_TIMESTAMP(6) not null comment '创建时间',
-    update_time datetime(6) default CURRENT_TIMESTAMP(6) not null on update CURRENT_TIMESTAMP(6) comment '更新时间'
-)
-    comment '段落表';
-
-create index chapter_index_volume_book_index
-    on book_paragraph (chapter_id, `index`, volume_id, book_id);
 
 create table book_tag
 (
@@ -73,6 +53,24 @@ create table book_volume
     update_time datetime(6) default CURRENT_TIMESTAMP(6) not null on update CURRENT_TIMESTAMP(6) comment '更新时间'
 )
     comment '分卷表';
+
+create table book_word
+(
+    book_id         bigint unsigned                          not null comment '书ID',
+    volume_index    int unsigned                             not null comment '分卷索引',
+    chapter_index   int unsigned                             not null comment '章节索引',
+    id              bigint unsigned                          not null comment '唯一标识'
+        primary key,
+    `index`         int unsigned                             not null comment '索引',
+    word_book_index int unsigned                             not null comment '字符在书中的索引位',
+    word            char                                     not null comment '字符',
+    create_time     datetime(6) default CURRENT_TIMESTAMP(6) not null comment '创建时间',
+    update_time     datetime(6) default CURRENT_TIMESTAMP(6) not null on update CURRENT_TIMESTAMP(6) comment '更新时间'
+)
+    comment '字符表';
+
+create index index_book_idx
+    on book_word (`index`, book_id);
 
 create table category
 (
