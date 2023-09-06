@@ -23,7 +23,7 @@ func (lw *LogicWord) InsertOrUpdate() {
 	}
 	db := storage.MysqlDB
 	var existLogicWord LogicWord
-	db.Model(&LogicWord{}).Where("head=? and middle=? and end=?", lw.Head, lw.Middle, lw.End).Find(&existLogicWord)
+	db.Model(&LogicWord{}).Where("head=? and distance=? and end=?", lw.Head, lw.Distance, lw.End).Find(&existLogicWord)
 	// 如果当前词汇已经存在更高层级的记录，直接忽略
 	if existLogicWord.Level >= lw.Level {
 		return

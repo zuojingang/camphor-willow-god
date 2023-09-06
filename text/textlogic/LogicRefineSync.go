@@ -1,13 +1,14 @@
 package textlogic
 
 import (
-	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 // LogicWordRefineSync 词组精炼
 type LogicWordRefineSync struct {
 	WordsFrequency *sync.Map            // 词组=>出现频次
+	Count          *atomic.Int32        // 当前层级词组数量
 	Level          int32                // 当前层级
 	MaxLevel       int32                // 最大层级
 	Next           *LogicWordRefineSync // 下一层精炼
@@ -16,6 +17,7 @@ type LogicWordRefineSync struct {
 func NewLogicWordRefineSync() *LogicWordRefineSync {
 	return &LogicWordRefineSync{
 		WordsFrequency: new(sync.Map),
+		Count:          new(atomic.Int32),
 		Level:          1,
 	}
 }
@@ -23,17 +25,22 @@ func NewLogicWordRefineSync() *LogicWordRefineSync {
 func NewLogicWordRefineSyncWithParams(level int32, maxLevel int32) *LogicWordRefineSync {
 	return &LogicWordRefineSync{
 		WordsFrequency: new(sync.Map),
+		Count:          new(atomic.Int32),
 		Level:          level,
 		MaxLevel:       maxLevel,
 	}
 }
 
-// RefineExtension 精炼扩展词汇
-func (lwr *LogicWordRefineSync) RefineExtension() {
+// Refine 精炼词组
+func (lwr *LogicWordRefineSync) Refine() {
 	if lwr == nil {
 		return
 	}
-	// 默认精炼扩展1000000（一百万）次
+	// 每一千个字符处理一次
+	if lwr.Count.Load() < 1000 {
+		return
+	}
+	// 默认精炼1000000（一百万）次
 	if lwr.MaxLevel == 0 {
 		lwr.MaxLevel = 1000000
 	}
@@ -49,6 +56,8 @@ func (lwr *LogicWordRefineSync) RefineExtension() {
 			frequency := value.(int)
 			// 词频达标，则向上晋位
 			if frequency < 2 {
+				// 重置词组频次
+				associationWordMap.Store(associationWord, 0)
 				return true
 			}
 			if lwr.Next == nil {
@@ -59,75 +68,21 @@ func (lwr *LogicWordRefineSync) RefineExtension() {
 			nextLevelAssociationWordFrequencyValue, _ := nextLevelAssociationWordMap.LoadOrStore(associationWord, 0)
 			nextLevelAssociationWordFrequency := nextLevelAssociationWordFrequencyValue.(int) + 1
 			nextLevelAssociationWordMap.Store(associationWord, nextLevelAssociationWordFrequency)
-			// 重置词组频次
-			associationWordMap.Store(associationWord, 0)
-			//// 经过十层以上过滤的词汇都需要入库（创建或修改）
-			//if lwr.Level >= 10 {
-			//	logicWord := LogicWord{
-			//		Head:                 wordHead,
-			//		LogicAssociationWord: associationWord,
-			//		Level:                lwr.Level,
-			//	}
-			//	logicWord.InsertOrUpdate()
-			//}
-			nextAssociationWordMapValue, _ := wordsFrequency.Load(associationWord.End)
-			if nextAssociationWordMapValue == nil {
-				return true
+			lwr.Next.Count.Add(1)
+			// 经过足够过滤层级的词汇需要入库（创建或修改）
+			if lwr.Level >= 100 {
+				logicWord := LogicWord{
+					Head:                 wordHead,
+					LogicAssociationWord: associationWord,
+					Level:                lwr.Level,
+				}
+				logicWord.InsertOrUpdate()
 			}
-			nextAssociationWordMap := nextAssociationWordMapValue.(*sync.Map)
-			nextAssociationWordMap.Range(func(key, value any) bool {
-				nextAssociationWord := key.(LogicAssociationWord)
-				nextAssociationWordFrequency := value.(int)
-				// 词频达标，则向上晋位
-				if nextAssociationWordFrequency < 2 {
-					return true
-				}
-				combineAssociationWord := LogicAssociationWord{
-					Middle: associationWord.Middle + associationWord.End + nextAssociationWord.Middle,
-					End:    nextAssociationWord.End,
-				}
-				nextLevelCombineAssociationWordFrequencyValue, _ := nextLevelAssociationWordMap.LoadOrStore(combineAssociationWord, 0)
-				nextLevelCombineAssociationWordFrequency := nextLevelCombineAssociationWordFrequencyValue.(int) + 1
-				nextLevelAssociationWordMap.Store(combineAssociationWord, nextLevelCombineAssociationWordFrequency)
-				//// 经过十层以上过滤的词汇都需要入库（创建或修改）
-				//if lwr.Level >= 10 {
-				//	combineWord := LogicWord{
-				//		Head:                 wordHead,
-				//		LogicAssociationWord: combineAssociationWord,
-				//		Level:                lwr.Level,
-				//	}
-				//	combineWord.InsertOrUpdate()
-				//}
-				return true
-			})
 			return true
 		})
 		return true
 	})
-	lwr.Next.RefineExtension()
-}
-
-func (lwr *LogicWordRefineSync) PersistentLogicWords() {
-	for lwr != nil {
-		lwr.WordsFrequency.Range(func(key, value any) bool {
-			head := key.(string)
-			associationWordFrequencyMap := value.(*sync.Map)
-			associationWordFrequencyMap.Range(func(key, value any) bool {
-				associationWord := key.(LogicAssociationWord)
-				// 经过十层以上过滤的词汇都需要入库（创建或修改）
-				if lwr.Level > 10 {
-					logicWord := LogicWord{
-						Head:                 head,
-						LogicAssociationWord: associationWord,
-						Level:                lwr.Level,
-					}
-					logicWord.InsertOrUpdate()
-					fmt.Println("write db before exit...")
-				}
-				return true
-			})
-			*lwr = *lwr.Next
-			return true
-		})
-	}
+	lwr.WordsFrequency = new(sync.Map)
+	lwr.Count.Store(0)
+	lwr.Next.Refine()
 }
