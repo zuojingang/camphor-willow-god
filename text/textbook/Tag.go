@@ -1,4 +1,4 @@
-package text
+package textbook
 
 import (
 	"camphor-willow-god/identified"
@@ -33,8 +33,6 @@ func (t *Tag) InsertOrUpdate() {
 	t.Id = existTag.Id
 	if t.Id == 0 {
 		t.Id = identified.IdGenerate()
-		db.Create(t)
-		return
 	}
-	db.Updates(t)
+	db.Create(t)
 }

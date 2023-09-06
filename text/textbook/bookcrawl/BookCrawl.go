@@ -1,7 +1,7 @@
-package crawl
+package bookcrawl
 
 import (
-	"camphor-willow-god/text"
+	"camphor-willow-god/text/textbook"
 	"fmt"
 	"github.com/gocolly/colly"
 	"github.com/gocolly/colly/debug"
@@ -21,7 +21,7 @@ func BookCrawl() {
 	extensions.Referer(c)
 	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
 		href := strings.TrimSpace(e.Attr("href"))
-		bookPathBase := "//www.qidian.com/book/"
+		bookPathBase := "//www.qidian.com/textbook/"
 		if !strings.Contains(href, bookPathBase) {
 			return
 		}
@@ -34,8 +34,8 @@ func BookCrawl() {
 		// 访问书籍页面
 		_ = e.Request.Visit(e.Attr("href"))
 	})
-	books := new([]*text.Book)
-	c.OnHTML(".book-info > .book-info-top", func(eBook *colly.HTMLElement) {
+	books := new([]*textbook.Book)
+	c.OnHTML(".textbook-info > .textbook-info-top", func(eBook *colly.HTMLElement) {
 		processBookSummaryInfo(eBook, books)
 	})
 	c.OnHTML(".catalog-volume", func(eVolume *colly.HTMLElement) {
@@ -68,11 +68,11 @@ func BookSearchCrawl(bookName string, author string) {
 		colly.Async(true),
 	)
 	extensions.RandomUserAgent(c)
-	c.OnHTML("#result-list > .book-img-text .book-mid-info", func(eBookInfo *colly.HTMLElement) {
+	c.OnHTML("#result-list > .textbook-img-text .textbook-mid-info", func(eBookInfo *colly.HTMLElement) {
 		filterThenVisitBook(eBookInfo, author)
 	})
-	books := new([]*text.Book)
-	c.OnHTML(".book-info > .book-info-top", func(eBook *colly.HTMLElement) {
+	books := new([]*textbook.Book)
+	c.OnHTML(".textbook-info > .textbook-info-top", func(eBook *colly.HTMLElement) {
 		processBookSummaryInfo(eBook, books)
 	})
 	c.OnHTML(".catalog-volume", func(eVolume *colly.HTMLElement) {
@@ -99,7 +99,7 @@ func BookSearchCrawl(bookName string, author string) {
 }
 
 // 处理章节字符
-func processChapterWords(eChapter *colly.HTMLElement, books *[]*text.Book) {
+func processChapterWords(eChapter *colly.HTMLElement, books *[]*textbook.Book) {
 	book := filterBookByOriginId(eChapter, books)
 	// 提取章节ID
 	chapterOriginId := extractOriginChapterId(eChapter.Request.URL.Path)
@@ -120,24 +120,24 @@ func processChapterWords(eChapter *colly.HTMLElement, books *[]*text.Book) {
 				if unicode.IsSpace(w) {
 					continue
 				}
-				word := text.NewBookWord()
+				word := textbook.NewBookWord()
 				word.BookId = book.Id
 				word.VolumeIndex = volume.Index
 				word.ChapterIndex = chapter.Index
 				word.Index = int32(wIdx)
 				word.Word = string(w)
-				*chapter.BookWord = append(*chapter.BookWord, word)
+				*chapter.Words = append(*chapter.Words, word)
 				wIdx++
 			}
 			// 持久化章节内容
-			text.BatchCreateBookWords(chapter.BookWord)
-			chapter.BookWord = nil
+			textbook.BatchCreateBookWords(chapter.Words)
+			chapter.Words = nil
 		}
 	}
 }
 
 // 处理分卷信息
-func processVolumeInfo(eVolume *colly.HTMLElement, books *[]*text.Book) {
+func processVolumeInfo(eVolume *colly.HTMLElement, books *[]*textbook.Book) {
 	// 处理分卷
 	volumeName := eVolume.ChildText("label > .volume-header > .volume-name")
 	// 本程序主要分析正文内容文字之间的逻辑关系，所以忽略掉非正文部分
@@ -152,7 +152,7 @@ func processVolumeInfo(eVolume *colly.HTMLElement, books *[]*text.Book) {
 	// 计算分卷索引位置
 	volumeIndex := len(*book.Volumes)
 	// 声明分卷
-	volume := text.NewBookVolume()
+	volume := textbook.NewBookVolume()
 	// 书ID
 	volume.BookId = book.Id
 	// 扩展书分卷
@@ -170,13 +170,13 @@ func processVolumeInfo(eVolume *colly.HTMLElement, books *[]*text.Book) {
 }
 
 // 处理章节信息
-func processChapter(eChapter *colly.HTMLElement, volume *text.BookVolume, book *text.Book) {
+func processChapter(eChapter *colly.HTMLElement, volume *textbook.BookVolume, book *textbook.Book) {
 	// 章节链接字符串
 	urlString := eChapter.Attr("href")
 	// 计算章节索引位置
 	chapterIndex := len(*volume.Chapters)
 	// 声明章节
-	chapter := text.NewBookChapter()
+	chapter := textbook.NewBookChapter()
 	// 书ID
 	chapter.BookId = book.Id
 	// 分卷ID
@@ -196,9 +196,9 @@ func processChapter(eChapter *colly.HTMLElement, volume *text.BookVolume, book *
 }
 
 // 处理书总览信息
-func processBookSummaryInfo(eBook *colly.HTMLElement, books *[]*text.Book) {
+func processBookSummaryInfo(eBook *colly.HTMLElement, books *[]*textbook.Book) {
 	// 声明书实例
-	book := text.NewBook()
+	book := textbook.NewBook()
 	book.OriginId = extractOriginBookId(eBook.Request.URL.Path)
 	book.Name = eBook.ChildText("#bookName")
 	book.Author = eBook.ChildText(".author-name > .writer")
@@ -206,7 +206,7 @@ func processBookSummaryInfo(eBook *colly.HTMLElement, books *[]*text.Book) {
 	categoryParent := new(int64)
 	*categoryParent = -1
 	eBook.ForEach(".author-name > a", func(index int, eCategory *colly.HTMLElement) {
-		categoryByName := text.NewCategoryByName(eCategory.Text)
+		categoryByName := textbook.NewCategoryByName(eCategory.Text)
 		categoryByName.Parent = *categoryParent
 		categoryByName.Level = int8(index + 1)
 		// 持久化分类
@@ -227,11 +227,11 @@ func processBookSummaryInfo(eBook *colly.HTMLElement, books *[]*text.Book) {
 		if slices.Contains([]string{"writer", "dot"}, class) {
 			return
 		}
-		tagByName := text.NewTagByName(eTag.Text)
+		tagByName := textbook.NewTagByName(eTag.Text)
 		// 持久化标签
 		tagByName.InsertOrUpdate()
 		// 持久化书标签
-		bookTagWithArgs := text.NewBookTagWithArgs(book.Id, tagByName.Id)
+		bookTagWithArgs := textbook.NewBookTagWithArgs(book.Id, tagByName.Id)
 		bookTagWithArgs.InsertOrUpdate()
 
 		*book.Tags = append(*book.Tags, tagByName)
@@ -245,19 +245,19 @@ func filterThenVisitBook(eBookInfo *colly.HTMLElement, author string) {
 	if !strings.Contains(currentBookAuthor, trimAuthor) {
 		return
 	}
-	bookUrl := eBookInfo.ChildAttr(".book-info-title > a", "href")
+	bookUrl := eBookInfo.ChildAttr(".textbook-info-title > a", "href")
 	_ = eBookInfo.Request.Visit(bookUrl)
 }
 
 // filterBookByOriginId 根据书原始ID过滤出书
-func filterBookByOriginId(e *colly.HTMLElement, books *[]*text.Book) *text.Book {
+func filterBookByOriginId(e *colly.HTMLElement, books *[]*textbook.Book) *textbook.Book {
 	originBookId := extractOriginBookId(e.Request.URL.Path)
 	for _, b := range *books {
 		if b.OriginId == originBookId {
 			return b
 		}
 	}
-	panic(fmt.Errorf("book %s not exist", originBookId))
+	panic(fmt.Errorf("textbook %s not exist", originBookId))
 }
 
 // extractOriginBookId 提取原始书ID

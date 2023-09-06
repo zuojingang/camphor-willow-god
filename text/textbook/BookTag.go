@@ -1,4 +1,4 @@
-package text
+package textbook
 
 import (
 	"camphor-willow-god/identified"
@@ -34,8 +34,6 @@ func (bt *BookTag) InsertOrUpdate() {
 	bt.Id = existBookTag.Id
 	if bt.Id == 0 {
 		bt.Id = identified.IdGenerate()
-		db.Create(bt)
-		return
 	}
-	db.Updates(bt)
+	db.Create(bt)
 }

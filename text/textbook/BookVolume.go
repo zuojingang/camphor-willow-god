@@ -1,4 +1,4 @@
-package text
+package textbook
 
 import (
 	"camphor-willow-god/identified"
@@ -24,7 +24,7 @@ func (v *BookVolume) TableName() string {
 	return "book_volume"
 }
 
-func (v *BookVolume) InsertOrUpdate(allowUpdate ...bool) {
+func (v *BookVolume) InsertOrUpdate() {
 	db := storage.MysqlDB
 	var existVolume BookVolume
 	db.Where("book_id=? and name=?", v.BookId, v.Name).Find(&existVolume)
@@ -32,10 +32,6 @@ func (v *BookVolume) InsertOrUpdate(allowUpdate ...bool) {
 	v.Id = existVolume.Id
 	if v.Id == 0 {
 		v.Id = identified.IdGenerate()
-		db.Create(v)
-		return
 	}
-	if len(allowUpdate) == 0 || allowUpdate[0] == false {
-		db.Updates(v)
-	}
+	db.Create(v)
 }

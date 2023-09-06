@@ -1,4 +1,4 @@
-package text
+package textbook
 
 import (
 	"camphor-willow-god/identified"
@@ -36,8 +36,6 @@ func (c *Category) InsertOrUpdate() {
 	// 新增
 	if c.Id == 0 {
 		c.Id = identified.IdGenerate()
-		db.Create(c)
-		return
 	}
-	db.Updates(c)
+	db.Create(c)
 }

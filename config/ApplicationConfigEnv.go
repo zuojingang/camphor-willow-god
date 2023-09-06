@@ -14,6 +14,8 @@ type ApplicationConfigEnv struct {
 
 	// mysql 配置
 	Mysql Mysql
+	// Redis 配置
+	Redis Redis
 	// logger 配置
 	Logger Logger
 	// identified 配置
@@ -25,6 +27,11 @@ type Mysql struct {
 	DSN         string
 	MaxOpen     int
 	MaxLifetime int
+}
+
+// Redis 配置
+type Redis struct {
+	URL string
 }
 
 // Logger 配置

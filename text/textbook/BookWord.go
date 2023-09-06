@@ -1,4 +1,4 @@
-package text
+package textbook
 
 import (
 	"camphor-willow-god/identified"

@@ -1,4 +1,4 @@
-package text
+package textbook
 
 import (
 	"camphor-willow-god/identified"
@@ -14,20 +14,20 @@ type BookChapter struct {
 	OriginId    string
 	Index       int32
 	Name        string
-	BookWord    *[]*BookWord `gorm:"-"`
+	Words       *[]*BookWord `gorm:"-"`
 }
 
 // NewBookChapter 实例
 func NewBookChapter() *BookChapter {
 	return &BookChapter{
-		BookWord: new([]*BookWord)}
+		Words: new([]*BookWord)}
 }
 
 func (c *BookChapter) TableName() string {
 	return "book_chapter"
 }
 
-func (c *BookChapter) InsertOrUpdate(allowUpdate ...bool) {
+func (c *BookChapter) InsertOrUpdate() {
 	db := storage.MysqlDB
 	var existChapter BookChapter
 	db.Where("book_id=? and volume_index=? and `index`=?", c.BookId, c.VolumeIndex, c.Index).Find(&existChapter)
@@ -35,12 +35,8 @@ func (c *BookChapter) InsertOrUpdate(allowUpdate ...bool) {
 	c.Id = existChapter.Id
 	if c.Id == 0 {
 		c.Id = identified.IdGenerate()
-		db.Create(c)
-		return
 	}
-	if len(allowUpdate) == 0 || allowUpdate[0] == false {
-		db.Updates(c)
-	}
+	db.Create(c)
 }
 
 func (c *BookChapter) UpdateWordsBookIndex() {

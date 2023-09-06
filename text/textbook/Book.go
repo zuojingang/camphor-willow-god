@@ -1,4 +1,4 @@
-package text
+package textbook
 
 import (
 	"camphor-willow-god/identified"
@@ -36,10 +36,10 @@ func NewBookWithArgs(name string, author string) *Book {
 }
 
 func (b *Book) TableName() string {
-	return "book"
+	return "textbook"
 }
 
-func (b *Book) InsertOrUpdate(allowUpdate ...bool) {
+func (b *Book) InsertOrUpdate() {
 	db := storage.MysqlDB
 	var existBook Book
 	db.Where("name=? and author=?", b.Name, b.Author).Find(&existBook)
@@ -47,12 +47,8 @@ func (b *Book) InsertOrUpdate(allowUpdate ...bool) {
 	b.Id = existBook.Id
 	if b.Id == 0 {
 		b.Id = identified.IdGenerate()
-		db.Create(b)
-		return
 	}
-	if len(allowUpdate) == 0 || allowUpdate[0] == true {
-		db.Updates(b)
-	}
+	db.Create(b)
 }
 
 func (b *Book) Reset() {

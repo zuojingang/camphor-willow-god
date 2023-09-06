@@ -10,6 +10,8 @@ require (
 	github.com/spf13/viper v1.16.0
 	gorm.io/driver/mysql v1.5.1
 	gorm.io/gorm v1.25.4
+	github.com/deckarep/golang-set/v2 v2.3.1
+	github.com/redis/go-redis/v9 v9.1.0
 )
 
 require (
